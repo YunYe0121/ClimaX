@@ -33,6 +33,32 @@ def mse(pred, y, vars, lat=None, mask=None):
 
     return loss_dict
 
+def mae(pred, y, vars, lat = None, mask = None):
+    '''
+    Mean squared error
+
+    Args:
+        pred: [B, L, V * p * p].
+        y: [B, V, H, W].
+        vars: list of variable names.
+    '''
+
+    # loss = (pred - y) ** 2
+    loss = abs(pred - y)
+
+    loss_dict = {}
+
+    with torch.no_grad():
+        for i, var in enumerate(vars):
+            if mask is not None:
+                loss_dict[var] = (loss[:, i] * mask).sum() / mask.sum()
+            else:
+                loss_dict[var] = loss[:, i].mean()
+
+    if mask is not None:
+        loss_dict['loss'] = (loss.mean(dim = 1) * mask).sum() / mask.sum()
+    else:
+        loss_dict['loss'] = loss.mean(dim = 1).mean()
 
 def lat_weighted_mse(pred, y, vars, lat, mask=None):
     """Latitude weighted mean squared error
@@ -305,5 +331,69 @@ def lat_weighted_mean_bias(pred, y, transform, vars, lat, log_steps, log_days, c
                 # loss_dict[f"mean_bias_{var}_day_{day}"] = y_mean - pred_mean
 
     loss_dict["mean_bias"] = np.mean([loss_dict[k].cpu() for k in loss_dict.keys()])
+
+    return loss_dict
+
+def mae_val(pred, y, transform, vars, lat, clim, log_postfix):
+    '''
+    mean abosolute error.
+    Args:
+        y: [B, V, H, W].
+        pred: [B, V, H, W].
+        vars: list of variable names.
+        lat: H.
+    '''
+
+    pred = transform(pred)
+    y = transform(y)
+
+    # [B, V, H, W].
+    error = abs(pred - y)
+
+    # lattitude weights
+    # w_lat = np.cos(np.deg2rad(lat))
+    # w_lat = w_lat / w_lat.mean()
+    # w_lat = torch.from_numpy(w_lat).unsqueeze(0).unsqueeze(-1).to(dtype = error.dtype, device = error.device)
+
+    loss_dict = {}
+    with torch.no_grad():
+        for i, var in enumerate(vars):
+            loss_dict[f'mae_{var}_{log_postfix}'] = torch.mean(
+                torch.mean(error[:, i], dim = (-2, -1))
+            )
+
+    loss_dict['mae'] = np.mean([loss_dict[k].cpu() for k in loss_dict.keys()])
+
+    return loss_dict
+
+def rmse_val(pred, y, transform, vars, lat, clim, log_postfix):
+    '''
+    root mean squared error.
+    Args:
+        y: [B, V, H, W].
+        pred: [B, V, H, W].
+        vars: list of variable names.
+        lat: H.
+    '''
+
+    pred = transform(pred)
+    y = transform(y)
+
+    # [B, V, H, W].
+    error = (pred - y) ** 2
+
+    # lattitude weights
+    # w_lat = np.cos(np.deg2rad(lat))
+    # w_lat = w_lat / w_lat.mean()  # (H, )
+    # w_lat = torch.from_numpy(w_lat).unsqueeze(0).unsqueeze(-1).to(dtype = error.dtype, device = error.device)
+
+    loss_dict = {}
+    with torch.no_grad():
+        for i, var in enumerate(vars):
+            loss_dict[f'rmse_{var}_{log_postfix}'] = torch.mean(
+                torch.sqrt(torch.mean(error[:, i], dim = (-2, -1)))
+            )
+
+    loss_dict['rmse'] = np.mean([loss_dict[k].cpu() for k in loss_dict.keys()])
 
     return loss_dict

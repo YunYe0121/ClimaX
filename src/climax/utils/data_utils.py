@@ -85,6 +85,10 @@ BOUNDARIES = {
     'Global': { # 32, 64
         'lat_range': (-90, 90),
         'lon_range': (0, 360)
+    },
+    'Taiwan': {
+        'lat_range': (5, 40),
+        'lon_range': (100, 145)
     }
 }
 
